@@ -20,6 +20,7 @@ object Proto {
     const val SHORTCUT_DELETE = 0x23
     const val FAVORITE = 0x24
     const val PREEDIT = 0x25
+    const val WORKSPACE = 0x26
     const val PING = 0x30
 
     const val WELCOME = 0x81

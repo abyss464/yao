@@ -39,6 +39,8 @@ pub struct State {
     pub window: Option<Window>,
     pub media: Option<Media>,
     pub leds: Leds,
+    pub workspaces: Vec<hypr::Workspace>,
+    pub workspace: i64,
 }
 
 pub struct Shared {
@@ -87,6 +89,17 @@ impl Shared {
             s.window = window;
             changed
         });
+    }
+
+    fn refresh_workspaces(&self) {
+        if let Some((list, active)) = hypr::workspaces() {
+            self.state.send_if_modified(|s| {
+                let changed = s.workspaces != list || s.workspace != active;
+                s.workspaces = list;
+                s.workspace = active;
+                changed
+            });
+        }
     }
 
     pub fn refresh_leds(&self) {
@@ -147,8 +160,18 @@ fn hypr_thread(sh: Arc<Shared>) {
             sh.refresh_binds();
             sh.set_window(hypr::active_window());
             sh.refresh_leds();
+            sh.refresh_workspaces();
             for line in BufReader::new(stream).lines() {
                 let Ok(line) = line else { break };
+                let event = line.split(">>").next().unwrap_or("");
+                if matches!(
+                    event,
+                    "workspace" | "workspacev2" | "createworkspace" | "createworkspacev2" | "destroyworkspace"
+                        | "destroyworkspacev2" | "focusedmon" | "focusedmonv2" | "moveworkspace"
+                        | "moveworkspacev2" | "renameworkspace"
+                ) {
+                    sh.refresh_workspaces();
+                }
                 if let Some(rest) = line.strip_prefix("activewindow>>") {
                     let (class, title) = rest.split_once(',').unwrap_or((rest, ""));
                     sh.set_window((!class.is_empty()).then(|| Window {

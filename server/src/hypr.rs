@@ -93,3 +93,35 @@ pub fn lock_state(name: &str) -> Option<(bool, bool)> {
         kb.get("numLock").and_then(|b| b.as_bool()).unwrap_or(false),
     ))
 }
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct Workspace {
+    pub id: i64,
+    pub name: String,
+}
+
+/// Normal workspaces (special ones left out), ordered by id, and the active one.
+pub fn workspaces() -> Option<(Vec<Workspace>, i64)> {
+    let list: serde_json::Value = serde_json::from_str(&request("j/workspaces").ok()?).ok()?;
+    let active: serde_json::Value = serde_json::from_str(&request("j/activeworkspace").ok()?).ok()?;
+    let mut out: Vec<Workspace> = list
+        .as_array()?
+        .iter()
+        .filter_map(|w| {
+            let id = w.get("id")?.as_i64()?;
+            (id > 0).then(|| Workspace { id, name: w.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string() })
+        })
+        .collect();
+    out.sort_by_key(|w| w.id);
+    Some((out, active.get("id").and_then(|i| i.as_i64()).unwrap_or(0)))
+}
+
+/// Switches to a workspace: the Lua dispatcher first, the classic one if this
+/// Hyprland still uses hyprlang.
+pub fn focus_workspace(id: i64) -> bool {
+    let lua = request(&format!("dispatch hl.dsp.focus({{ workspace = {id} }})"));
+    if lua.as_deref().map_or(false, |r| r.trim() == "ok") {
+        return true;
+    }
+    request(&format!("dispatch workspace {id}")).map_or(false, |r| r.trim() == "ok")
+}

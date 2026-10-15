@@ -99,10 +99,23 @@ class Model(app: Application) : AndroidViewModel(app) {
     val media: StateFlow<MediaInfo?> = _media
     private val _leds = MutableStateFlow(Leds())
     val leds: StateFlow<Leds> = _leds
+    private val _workspaces = MutableStateFlow<List<Int>>(emptyList())
+    val workspaces: StateFlow<List<Int>> = _workspaces
+    private val _activeWorkspace = MutableStateFlow(0)
+    val activeWorkspace: StateFlow<Int> = _activeWorkspace
     private val _library = MutableStateFlow<List<Shortcut>>(emptyList())
     val library: StateFlow<List<Shortcut>> = _library
 
     var tab by mutableStateOf(Tab.Touchpad)
+
+    /** How far the computer's pointer travels per finger movement, 0.5–3×. */
+    var touchSpeed by mutableStateOf(prefs.getFloat("touch_speed", 1f))
+        private set
+
+    fun changeTouchSpeed(v: Float) {
+        touchSpeed = (v * 10).toInt() / 10f
+        prefs.edit().putFloat("touch_speed", touchSpeed).apply()
+    }
     var lastPortraitTab = Tab.Touchpad
 
     @Volatile private var conn: Connection? = null
@@ -303,6 +316,8 @@ class Model(app: Application) : AndroidViewModel(app) {
             )
         }
         o.optJSONObject("leds")?.let { _leds.value = Leds(it.optBoolean("caps"), it.optBoolean("num")) }
+        o.optJSONArray("workspaces")?.let { a -> _workspaces.value = (0 until a.length()).map { a.getJSONObject(it).optInt("id") } }
+        _activeWorkspace.value = o.optInt("workspace")
     }
 
     private fun onLibrary(o: JSONObject) {
@@ -342,14 +357,15 @@ class Model(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * The touch surface's size. A surface that only shrinks (the input bar opening)
-     * keeps the bigger configuration, so the computer's touchpad is not recreated.
+     * The touch surface's size. A surface that only got shorter (the input bar
+     * opening) keeps the taller configuration, so the computer's touchpad is not
+     * recreated for it; a rotation or a new speed sends the new size.
      */
     fun touchConfig(w: Int, h: Int, pxPerMmX: Int, pxPerMmY: Int) {
         val s = touchSize
-        if (w <= s[0] && h <= s[1] && pxPerMmX == s[2] && pxPerMmY == s[3]) return
-        touchSize = intArrayOf(maxOf(w, s[0]), maxOf(h, s[1]), pxPerMmX, pxPerMmY)
-        val f = Proto.touchConfig(touchSize[0], touchSize[1], pxPerMmX, pxPerMmY)
+        if (w == s[0] && h <= s[1] && pxPerMmX == s[2] && pxPerMmY == s[3]) return
+        touchSize = intArrayOf(w, h, pxPerMmX, pxPerMmY)
+        val f = Proto.touchConfig(w, h, pxPerMmX, pxPerMmY)
         touchConfig = f
         send(f)
     }
@@ -363,6 +379,7 @@ class Model(app: Application) : AndroidViewModel(app) {
     fun text(s: String) = send(Proto.text(s))
     fun preedit(s: String) = send(Proto.frame(Proto.PREEDIT, s.toByteArray()))
     fun run(id: String) = send(Proto.json(Proto.RUN, JSONObject().put("id", id)))
+    fun workspace(id: Int) = send(Proto.json(Proto.WORKSPACE, JSONObject().put("id", id)))
 
     fun favorite(id: String, on: Boolean) =
         send(Proto.json(Proto.FAVORITE, JSONObject().put("id", id).put("favorite", on)))

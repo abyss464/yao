@@ -256,6 +256,15 @@ impl Session {
             }
             proto::PREEDIT => self.act(Action::Preedit(String::from_utf8_lossy(p).into_owned())),
             proto::RUN => self.run_shortcut(p),
+            proto::WORKSPACE => {
+                if let Some(id) = self.json(p).and_then(|v| v["id"].as_i64()) {
+                    if self.sh.sandbox {
+                        eprintln!("[sandbox] workspace {id}");
+                    } else {
+                        tokio::task::spawn_blocking(move || yao::hypr::focus_workspace(id));
+                    }
+                }
+            }
             proto::SHORTCUT_PUT => self.shortcut_put(p),
             proto::SHORTCUT_DELETE => self.shortcut_delete(p),
             proto::FAVORITE => self.favorite(p),

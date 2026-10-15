@@ -2,6 +2,7 @@ package dev.abysser.yao
 
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.view.KeyEvent
@@ -52,20 +53,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** The keyboard is landscape; the touchpad follows the phone; the rest stay upright. */
     private fun applyTab(tab: Tab) {
+        when (tab) {
+            Tab.Keyboard -> {
+                seenLandscape = false
+                lastDeg = -1
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                orientation?.enable()
+            }
+            Tab.Touchpad -> {
+                orientation?.disable()
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+            }
+            else -> {
+                orientation?.disable()
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+        }
+        applyBars()
+    }
+
+    /** Full screen while the phone is sideways (keyboard, landscape touchpad). */
+    private fun applyBars() {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
-        if (tab == Tab.Keyboard) {
-            seenLandscape = false
-            lastDeg = -1
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (model.tab == Tab.Keyboard || (model.tab == Tab.Touchpad && landscape)) {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller.hide(WindowInsetsCompat.Type.systemBars())
-            orientation?.enable()
         } else {
-            orientation?.disable()
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             controller.show(WindowInsetsCompat.Type.systemBars())
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyBars()
     }
 
     override fun onStart() {
