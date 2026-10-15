@@ -27,6 +27,7 @@ import dev.abysser.yao.R
 /** The palette of the design: graphite ground, one amber accent. */
 object C {
     val ground = Color(0xFF111315)
+    val stage = Color(0xFF0B0C0E)
     val surface = Color(0xFF1A1D21)
     val surfaceHi = Color(0xFF262A2F)
     val pressed = Color(0xFF2E3238)

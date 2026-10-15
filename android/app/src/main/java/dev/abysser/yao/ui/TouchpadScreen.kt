@@ -10,6 +10,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
@@ -78,27 +82,65 @@ fun TouchpadScreen(model: Model, onHost: () -> Unit) {
         return
     }
     var typing by remember { mutableStateOf(false) }
+    if (typing) {
+        TypingStage(model, onClose = { typing = false })
+        return
+    }
     Column(Modifier.fillMaxSize()) {
         StatusRow(model, onHost) {
             Workspaces(model)
-            IconButton(Glyphs.type, "打字", tint = if (typing) C.accent else C.text3) { typing = !typing }
+            IconButton(Glyphs.type, "打字", tint = C.text3) { typing = true }
         }
-        Pad(
-            model, Modifier.weight(1f).fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp),
-            stripHeight = 76, video = typing,
-        )
-        if (typing) TextBar(model, onClose = { typing = false })
+        Pad(model, Modifier.weight(1f).fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp), stripHeight = 76)
     }
 }
 
-/** The surface and its click strip; while typing, the surface shows the target window. */
+/**
+ * Typing: the window the text goes to fills everything above the phone's input
+ * method, live, with only its name in a corner. The touchpad still works over the
+ * picture. What the input method is composing shows in the computer's field itself;
+ * its own keys do Backspace and Enter. Putting the input method away ends typing.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Pad(model: Model, modifier: Modifier, stripHeight: Int, video: Boolean = false) {
-    Column(modifier.clip(RoundedCornerShape(28.dp)).background(C.surface)) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (video) VideoView(model, Modifier.fillMaxSize())
-            Surface(model, Modifier.matchParentSize())
+private fun TypingStage(model: Model, onClose: () -> Unit) {
+    var bridge by remember { mutableStateOf<ImeBridgeView?>(null) }
+    val window by model.window.collectAsState()
+    val imeVisible = WindowInsets.isImeVisible
+    var imeSeen by remember { mutableStateOf(false) }
+    LaunchedEffect(imeVisible) {
+        if (imeVisible) imeSeen = true else if (imeSeen) onClose()
+    }
+    LaunchedEffect(bridge) { bridge?.show() }
+    BackHandler {
+        bridge?.hide()
+        onClose()
+    }
+    Box(Modifier.fillMaxSize().background(C.stage)) {
+        AndroidView(
+            factory = { ctx -> ImeBridgeView(ctx, model) {}.also { bridge = it } },
+            modifier = Modifier.size(1.dp),
+        )
+        VideoView(model, Modifier.fillMaxSize()) {
+            window?.let { w ->
+                BasicText(
+                    w.cls,
+                    style = ts(12.sp, C.text2, family = Mono),
+                    modifier = Modifier.align(Alignment.TopStart).padding(12.dp)
+                        .background(C.stage.copy(alpha = 0.72f), RoundedCornerShape(50))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
         }
+        Surface(model, Modifier.matchParentSize())
+    }
+}
+
+/** The surface and its click strip. */
+@Composable
+private fun Pad(model: Model, modifier: Modifier, stripHeight: Int) {
+    Column(modifier.clip(RoundedCornerShape(28.dp)).background(C.surface)) {
+        Surface(model, Modifier.weight(1f).fillMaxWidth())
         Box(Modifier.fillMaxWidth().height(1.dp).background(C.hair))
         Row(Modifier.fillMaxWidth().height(stripHeight.dp)) {
             ClickZone(model, K.BTN_LEFT, "左键", Modifier.weight(1f))
@@ -176,11 +218,12 @@ private fun Surface(model: Model, modifier: Modifier) {
  * under the touch surface (the touchpad keeps working over it).
  */
 @Composable
-private fun VideoView(model: Model, modifier: Modifier) {
+private fun VideoView(model: Model, modifier: Modifier, overlay: @Composable BoxScope.() -> Unit = {}) {
     var aspect by remember { mutableStateOf<Float?>(null) }
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val maxW = constraints.maxWidth
         val maxH = constraints.maxHeight
+        Box(aspect?.let { Modifier.aspectRatio(it) } ?: Modifier.fillMaxSize()) {
         AndroidView(
             factory = { ctx ->
                 TextureView(ctx).apply {
@@ -205,8 +248,10 @@ private fun VideoView(model: Model, modifier: Modifier) {
                     }
                 }
             },
-            modifier = aspect?.let { Modifier.aspectRatio(it) } ?: Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize(),
         )
+        overlay()
+        }
     }
 }
 
@@ -249,59 +294,4 @@ private fun ClickZone(model: Model, button: Int, label: String, modifier: Modifi
             .semantics { contentDescription = label; role = Role.Button }
             .press(button, pressed, onDown = { view.tick(); model.button(button, true) }, onUp = { model.button(button, false) }),
     )
-}
-
-/**
- * Typing through the phone's own input method, bridged straight to the computer
- * (see [ImeBridgeView]). Above it: the window the text goes to (with focus following
- * the mouse, the one under the pointer). The bar shows what is still being composed.
- */
-@Composable
-private fun TextBar(model: Model, onClose: () -> Unit) {
-    var composing by remember { mutableStateOf("") }
-    var bridge by remember { mutableStateOf<ImeBridgeView?>(null) }
-    val window by model.window.collectAsState()
-    BackHandler {
-        bridge?.hide()
-        onClose()
-    }
-    LaunchedEffect(bridge) { bridge?.show() }
-
-    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
-        val target = window?.let { w -> if (w.title.isBlank()) w.cls else "${w.cls} · ${w.title}" } ?: "没有聚焦的窗口"
-        BasicText(
-            "→ $target",
-            style = ts(12.sp, C.muted),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.weight(1f).height(48.dp)
-                    .background(C.surface, RoundedCornerShape(14.dp))
-                    .border(1.dp, C.hair, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                AndroidView(
-                    factory = { ctx ->
-                        ImeBridgeView(ctx, model) { composing = it }.also { v ->
-                            v.setOnClickListener { v.show() }
-                            bridge = v
-                        }
-                    },
-                    modifier = Modifier.matchParentSize(),
-                )
-                BasicText(
-                    if (composing.isEmpty()) "用手机输入法打字，上屏即发送" else composing,
-                    style = if (composing.isEmpty()) ts(15.sp, C.muted) else ts(15.sp, C.accent),
-                    maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            IconButton(Glyphs.backspace, "退格", size = 48) { model.tap(K.BACKSPACE) }
-            IconButton(Glyphs.enter, "回车", size = 48) { model.tap(K.ENTER) }
-        }
-    }
 }
