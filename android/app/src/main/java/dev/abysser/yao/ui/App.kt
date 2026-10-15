@@ -1,10 +1,13 @@
 package dev.abysser.yao.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -31,6 +34,7 @@ fun App(model: Model) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Main(model: Model) {
     var settings by remember { mutableStateOf(false) }
@@ -39,6 +43,9 @@ private fun Main(model: Model) {
         KeyboardScreen(model)
         return
     }
+    // Back never leaves the app from its main pages: on a touchpad an edge swipe is
+    // far more often a stroke than a request to quit.
+    BackHandler {}
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).imePadding()) {
         Box(Modifier.weight(1f)) {
             when (model.tab) {
@@ -48,9 +55,12 @@ private fun Main(model: Model) {
                 Tab.Keyboard -> {}
             }
         }
-        NavBar(model.tab) { t ->
-            if (t != Tab.Keyboard) model.lastPortraitTab = t
-            model.tab = t
+        // While the phone's input method is up, it is the bottom of the screen.
+        if (!WindowInsets.isImeVisible) {
+            NavBar(model.tab) { t ->
+                if (t != Tab.Keyboard) model.lastPortraitTab = t
+                model.tab = t
+            }
         }
     }
     if (settings) Settings(model) { settings = false }

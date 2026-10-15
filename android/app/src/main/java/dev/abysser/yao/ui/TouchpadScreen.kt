@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -34,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -87,13 +89,20 @@ private fun Surface(model: Model, modifier: Modifier) {
     val view = LocalView.current
     val density = LocalDensity.current
     var size by remember { mutableStateOf(0 to 0) }
+    // The size settles over an animation (the code keyboard closing): tell the
+    // computer once it has stopped changing, so its touchpad is made once.
+    LaunchedEffect(size) {
+        if (size.first <= 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(400)
+        val dm = view.resources.displayMetrics
+        model.touchConfig(size.first, size.second, (dm.xdpi / 25.4f).roundToInt(), (dm.ydpi / 25.4f).roundToInt())
+    }
     Box(
         modifier
-            .onSizeChanged {
-                size = it.width to it.height
-                val dm = view.resources.displayMetrics
-                model.touchConfig(it.width, it.height, (dm.xdpi / 25.4f).roundToInt(), (dm.ydpi / 25.4f).roundToInt())
-            }
+            // Strokes that start near the screen edge stay on the touchpad instead of
+            // becoming the system's Back gesture.
+            .systemGestureExclusion()
+            .onSizeChanged { size = it.width to it.height }
             .pointerInteropFilter { ev ->
                 if (ev.actionMasked == MotionEvent.ACTION_DOWN) view.requestUnbufferedDispatch(ev)
                 sendTouches(model, ev, size)
@@ -142,82 +151,47 @@ private fun ClickZone(model: Model, button: Int, label: String, modifier: Modifi
 }
 
 /**
- * Typing through the phone's own input method. The field mirrors onto the computer:
- * whatever the input method commits (not the text it is still composing) is typed
- * there, and deletions become backspaces. Enter sends Enter and starts afresh.
+ * Typing through the phone's own input method, bridged straight to the computer
+ * (see [ImeBridgeView]). The bar shows what is still being composed.
  */
 @Composable
 private fun TextBar(model: Model, onClose: () -> Unit) {
-    var value by remember { mutableStateOf(TextFieldValue("")) }
-    var sent by remember { mutableStateOf("") }
-    val focus = remember { FocusRequester() }
-    BackHandler(onBack = onClose)
-    LaunchedEffect(Unit) { focus.requestFocus() }
-
-    fun committed(v: TextFieldValue): String {
-        val c = v.composition ?: return v.text
-        return v.text.substring(0, c.min) + v.text.substring(c.max)
+    var composing by remember { mutableStateOf("") }
+    var bridge by remember { mutableStateOf<ImeBridgeView?>(null) }
+    BackHandler {
+        bridge?.hide()
+        onClose()
     }
-
-    fun mirror(now: String) {
-        val p = sent.commonPrefixWith(now).length
-        val removed = sent.substring(p)
-        repeat(removed.codePointCount(0, removed.length)) { model.tap(K.BACKSPACE) }
-        val added = now.substring(p)
-        if (added.isNotEmpty()) model.text(added)
-        sent = now
-    }
-
-    fun enter() {
-        model.tap(K.ENTER)
-        value = TextFieldValue("")
-        sent = ""
-    }
-
-    fun backspace() {
-        if (value.composition == null && value.text.isNotEmpty()) {
-            val t = value.text.substring(0, value.text.offsetByCodePoints(value.text.length, -1))
-            value = TextFieldValue(t, TextRange(t.length))
-            sent = t
-        }
-        model.tap(K.BACKSPACE)
-    }
+    LaunchedEffect(bridge) { bridge?.show() }
 
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        BasicTextField(
-            value = value,
-            onValueChange = { v ->
-                value = v
-                mirror(committed(v))
-            },
-            singleLine = true,
-            textStyle = ts(15.sp),
-            cursorBrush = SolidColor(C.accent),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send, autoCorrectEnabled = false),
-            keyboardActions = KeyboardActions(onSend = { enter() }),
-            modifier = Modifier.weight(1f).height(48.dp).focusRequester(focus)
-                // A backspace with nothing left in the field still deletes on the computer.
-                .onPreviewKeyEvent { e ->
-                    if (e.type == KeyEventType.KeyDown && e.key == Key.Backspace && value.text.isEmpty()) {
-                        model.tap(K.BACKSPACE)
-                        true
-                    } else false
-                }
+        Box(
+            Modifier.weight(1f).height(48.dp)
                 .background(C.surface, RoundedCornerShape(14.dp))
-                .border(1.dp, C.hair, RoundedCornerShape(14.dp))
-                .padding(horizontal = 16.dp, vertical = 13.dp),
-            decorationBox = { inner ->
-                Box {
-                    if (value.text.isEmpty()) BasicText("输入文字，上屏即发送", style = ts(15.sp, C.muted))
-                    inner()
-                }
-            },
-        )
+                .border(1.dp, C.hair, RoundedCornerShape(14.dp)),
+            contentAlignment = androidx.compose.ui.Alignment.CenterStart,
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    ImeBridgeView(ctx, model) { composing = it }.also { v ->
+                        v.setOnClickListener { v.show() }
+                        bridge = v
+                    }
+                },
+                modifier = Modifier.matchParentSize(),
+            )
+            BasicText(
+                if (composing.isEmpty()) "用手机输入法打字，上屏即发送" else composing,
+                style = if (composing.isEmpty()) ts(15.sp, C.muted) else ts(15.sp, C.accent),
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
         Spacer(Modifier.width(8.dp))
-        IconButton(Glyphs.backspace, "退格", size = 48) { backspace() }
-        IconButton(Glyphs.enter, "回车", size = 48) { enter() }
+        IconButton(Glyphs.backspace, "退格", size = 48) { model.tap(K.BACKSPACE) }
+        IconButton(Glyphs.enter, "回车", size = 48) { model.tap(K.ENTER) }
     }
 }

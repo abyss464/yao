@@ -109,22 +109,25 @@ impl Shared {
 
 struct Args {
     sandbox: bool,
+    advertise: bool,
     port: Option<u16>,
     config_dir: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Args> {
-    let mut args = Args { sandbox: false, port: None, config_dir: None };
+    let mut args = Args { sandbox: false, advertise: true, port: None, config_dir: None };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
             "--sandbox" => args.sandbox = true,
+            "--no-advertise" => args.advertise = false,
             "--port" => args.port = Some(it.next().context("--port needs a value")?.parse()?),
             "--config-dir" => args.config_dir = Some(it.next().context("--config-dir needs a value")?.into()),
             "-h" | "--help" => {
                 println!(
-                    "yaod [--port N] [--config-dir DIR] [--sandbox]\n\n  \
-                     --sandbox  grab the virtual devices and log instead of typing (development)"
+                    "yaod [--port N] [--config-dir DIR] [--no-advertise] [--sandbox]\n\n  \
+                     --no-advertise  no mDNS announcement\n  \
+                     --sandbox       grab the virtual devices and log instead of typing (development)"
                 );
                 std::process::exit(0);
             }
@@ -246,7 +249,7 @@ async fn main() -> Result<()> {
         std::thread::spawn(move || media_thread(sh));
     }
     tokio::spawn(watch_shortcuts(sh.clone()));
-    if !args.sandbox {
+    if args.advertise && !args.sandbox {
         tokio::spawn(net::advertise(host.clone(), port, cfg.advertise_ip));
     }
 

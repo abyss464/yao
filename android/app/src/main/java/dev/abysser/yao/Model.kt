@@ -76,7 +76,7 @@ class Model(app: Application) : AndroidViewModel(app) {
         ?: UUID.randomUUID().toString().also { prefs.edit().putString("device_id", it).apply() }
     private val deviceName: String =
         Settings.Global.getString(app.contentResolver, Settings.Global.DEVICE_NAME)
-            ?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL
+            ?.takeIf { it.isNotBlank() && it != "unknown" } ?: android.os.Build.MODEL
 
     private val _pairing = MutableStateFlow(loadPairing())
     val pairing: StateFlow<Pairing?> = _pairing

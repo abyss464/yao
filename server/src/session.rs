@@ -22,9 +22,9 @@ use yao::proto::{self, Cursor};
 const RELEASE_AFTER: Duration = Duration::from_secs(1);
 const CLOSE_AFTER: Duration = Duration::from_secs(10);
 const PAIR_TTL: Duration = Duration::from_secs(60);
-/// Bounds of the delay behind the phone's own timing at which touches are replayed.
-const TOUCH_MIN_DELAY_MS: i64 = 4;
-const TOUCH_MAX_DELAY_MS: i64 = 40;
+/// Bounds of the delay (beyond the fastest delivery) at which a stroke starts.
+const TOUCH_MIN_DELAY_US: i64 = 4_000;
+const TOUCH_MAX_DELAY_US: i64 = 80_000;
 
 /// A snapshot of the fingers on the phone; `time` is the phone's clock in ms,
 /// `None` for a release made up here (emitted as soon as it is dequeued).
@@ -55,7 +55,7 @@ struct Session {
     sid: u64,
     out: mpsc::UnboundedSender<Vec<u8>>,
     actions: mpsc::UnboundedSender<Action>,
-    touches: mpsc::UnboundedSender<TouchFrame>,
+    touches: std::sync::mpsc::Sender<TouchFrame>,
     held: Arc<Mutex<HashSet<u16>>>,
     buttons: HashSet<u16>,
     device: Option<String>,
@@ -95,8 +95,11 @@ pub async fn run(sh: Arc<Shared>, tcp: TcpStream, peer: SocketAddr, acceptor: Tl
     let held = Arc::new(Mutex::new(HashSet::new()));
     let (act_tx, act_rx) = mpsc::unbounded_channel();
     let executor = tokio::spawn(execute(sh.clone(), held.clone(), act_rx));
-    let (touch_tx, touch_rx) = mpsc::unbounded_channel();
-    let pacer = tokio::spawn(pace_touches(sh.clone(), sid, touch_rx));
+    let (touch_tx, touch_rx) = std::sync::mpsc::channel();
+    let pacer = {
+        let sh = sh.clone();
+        std::thread::spawn(move || pace_touches(sh, sid, touch_rx))
+    };
     let mut s = Session {
         sh,
         sid,
@@ -115,13 +118,15 @@ pub async fn run(sh: Arc<Shared>, tcp: TcpStream, peer: SocketAddr, acceptor: Tl
     let mut released = false;
     let mut last_check = Instant::now();
     let mut tick = tokio::time::interval(Duration::from_millis(250));
+    let reason;
     loop {
         tokio::select! {
             frame = in_rx.recv() => {
-                let Some((kind, payload)) = frame else { break };
+                let Some((kind, payload)) = frame else { reason = "the phone closed the connection"; break };
                 last_heard = Instant::now();
                 released = false;
                 if !s.handle(kind, &payload) {
+                    reason = "refused";
                     break;
                 }
             }
@@ -132,12 +137,14 @@ pub async fn run(sh: Arc<Shared>, tcp: TcpStream, peer: SocketAddr, acceptor: Tl
                     released = true;
                 }
                 if silent >= CLOSE_AFTER {
+                    reason = "silent for 10 s";
                     break;
                 }
                 if last_check.elapsed() >= Duration::from_secs(5) {
                     last_check = Instant::now();
                     if !s.still_paired() {
                         s.send(proto::error("unpaired", "this phone was removed on the computer"));
+                        reason = "unpaired on the computer";
                         break;
                     }
                 }
@@ -154,10 +161,10 @@ pub async fn run(sh: Arc<Shared>, tcp: TcpStream, peer: SocketAddr, acceptor: Tl
     let sh = s.sh.clone();
     drop(s);
     // Let queued touch frames play out, then make sure every finger is lifted.
-    let _ = tokio::time::timeout(Duration::from_millis(500), pacer).await;
+    let _ = tokio::time::timeout(Duration::from_millis(500), tokio::task::spawn_blocking(move || pacer.join())).await;
     sh.devices.lock().unwrap().release_touches(sid);
     let _ = tokio::time::timeout(Duration::from_secs(1), writer).await;
-    eprintln!("yaod: session {sid} closed");
+    eprintln!("yaod: session {sid} closed: {reason}");
 }
 
 impl Session {
@@ -496,80 +503,76 @@ impl Session {
     }
 }
 
-/// Replays touch frames with the phone's own spacing, behind the fastest delivery
-/// seen lately by a delay that follows the link's jitter. Wi-Fi delivers frames in
-/// bursts; emitted as they arrive, libinput would see tiny time deltas, read the
-/// movement as jumps and drop it. Frames that are late anyway are merged.
-async fn pace_touches(sh: Arc<Shared>, sid: u64, mut rx: mpsc::UnboundedReceiver<TouchFrame>) {
-    let start = tokio::time::Instant::now();
-    let ms = |i: tokio::time::Instant| i.saturating_duration_since(start).as_millis() as i64;
-    // (arrival ms, arrival - phone time) over the last two seconds.
+/// Replays touch frames on the phone's own timeline: frame `t` is emitted at
+/// `t + delay`. Within one stroke the spacing between frames is never compressed:
+/// a frame that arrives too late pushes the delay up for the rest of the stroke
+/// instead. libinput derives speed from event times, and frames bunched together
+/// read to it as jumps and are dropped. Each new stroke re-anchors the delay just
+/// above the fastest delivery seen lately plus the link's jitter. Runs on its own
+/// thread for sub-millisecond sleeps.
+fn pace_touches(sh: Arc<Shared>, sid: u64, rx: std::sync::mpsc::Receiver<TouchFrame>) {
+    let start = std::time::Instant::now();
+    let us = |i: std::time::Instant| i.saturating_duration_since(start).as_micros() as i64;
+    // (arrival µs, arrival - phone time) over the last three seconds.
     let mut offsets: std::collections::VecDeque<(i64, i64)> = std::collections::VecDeque::new();
+    let mut delay: Option<i64> = None;
     let mut last_phone: Option<u32> = None;
-    let mut queue: std::collections::VecDeque<(Option<i64>, TouchFrame)> = std::collections::VecDeque::new();
+    let (mut frames, mut late, mut max_delay) = (0u64, 0u64, 0i64);
+    // Strokes by the most fingers they had (1..=5+).
+    let (mut strokes, mut stroke_max) = ([0u64; 5], 0usize);
 
-    let mut schedule = |f: TouchFrame, offsets: &mut std::collections::VecDeque<(i64, i64)>| {
-        let Some(t) = f.time else { return (None, f) };
-        let arrived = ms(f.arrived.into());
+    while let Ok(f) = rx.recv() {
+        let Some(t) = f.time else {
+            sh.devices.lock().unwrap().touch(sid, &f.contacts);
+            delay = None;
+            continue;
+        };
+        frames += 1;
+        let arrived = us(f.arrived);
+        let phone = t as i64 * 1000;
         if last_phone.map_or(false, |l| t < l || t - l > 60_000) {
             offsets.clear();
+            delay = None;
         }
         last_phone = Some(t);
-        offsets.push_back((arrived, arrived - t as i64));
-        while offsets.front().map_or(false, |&(at, _)| arrived - at > 2000) {
+        offsets.push_back((arrived, arrived - phone));
+        while offsets.front().map_or(false, |&(at, _)| arrived - at > 3_000_000) {
             offsets.pop_front();
         }
-        let mut sorted: Vec<i64> = offsets.iter().map(|&(_, o)| o).collect();
-        sorted.sort_unstable();
-        let base = sorted[0];
-        let jitter = sorted[(sorted.len() * 9 / 10).min(sorted.len() - 1)] - base;
-        let delay = (jitter + 3).clamp(TOUCH_MIN_DELAY_MS, TOUCH_MAX_DELAY_MS);
-        (Some(t as i64 + base + delay), f)
-    };
-
-    loop {
-        if queue.is_empty() {
-            match rx.recv().await {
-                Some(f) => {
-                    let item = schedule(f, &mut offsets);
-                    queue.push_back(item);
-                }
-                None => break,
+        let d = *delay.get_or_insert_with(|| {
+            let mut sorted: Vec<i64> = offsets.iter().map(|&(_, o)| o).collect();
+            sorted.sort_unstable();
+            let base = sorted[0];
+            let jitter = sorted[(sorted.len() * 9 / 10).min(sorted.len() - 1)] - base;
+            base + (jitter + 3_000).clamp(TOUCH_MIN_DELAY_US, TOUCH_MAX_DELAY_US)
+        });
+        let now = us(std::time::Instant::now());
+        let mut due = phone + d;
+        if due < now {
+            late += 1;
+            delay = Some(d + (now - due) + 1_000);
+            due = now + 1_000;
+        }
+        max_delay = max_delay.max(due - phone - offsets.iter().map(|&(_, o)| o).min().unwrap_or(0));
+        if due > now {
+            std::thread::sleep(Duration::from_micros((due - now) as u64));
+        }
+        sh.devices.lock().unwrap().touch(sid, &f.contacts);
+        stroke_max = stroke_max.max(f.contacts.len());
+        if f.contacts.is_empty() {
+            delay = None;
+            if stroke_max > 0 {
+                strokes[stroke_max.min(5) - 1] += 1;
             }
+            stroke_max = 0;
         }
-        let (due, _) = queue.front().unwrap();
-        if let Some(due) = *due {
-            let now = ms(tokio::time::Instant::now());
-            if due > now {
-                tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_millis((due - now) as u64)) => {}
-                    f = rx.recv() => {
-                        match f {
-                            Some(f) => { let item = schedule(f, &mut offsets); queue.push_back(item); }
-                            None => {}
-                        }
-                        continue;
-                    }
-                }
-            }
-        }
-        while let Ok(f) = rx.try_recv() {
-            let item = schedule(f, &mut offsets);
-            queue.push_back(item);
-        }
-        let (_, mut cur) = queue.pop_front().unwrap();
-        // Merge frames that are already due and have the same fingers.
-        let now = ms(tokio::time::Instant::now());
-        while let Some((due, next)) = queue.front() {
-            let same = next.contacts.len() == cur.contacts.len()
-                && next.contacts.iter().all(|a| cur.contacts.iter().any(|b| a.0 == b.0));
-            if same && due.map_or(true, |d| d <= now) {
-                cur = queue.pop_front().unwrap().1;
-            } else {
-                break;
-            }
-        }
-        sh.devices.lock().unwrap().touch(sid, &cur.contacts);
+    }
+    if frames > 0 {
+        eprintln!(
+            "yaod: session {sid} touch: {frames} frames, {late} late, added delay up to {} ms; \
+             strokes by fingers 1-5: {strokes:?}",
+            max_delay / 1000
+        );
     }
 }
 
@@ -638,15 +641,34 @@ async fn chord(sh: &Arc<Shared>, codes: &[u16]) {
     }
 }
 
+/// Types text the phone has already composed. The computer's own input method
+/// must not reinterpret it (Rime in Chinese mode would take the letters as
+/// pinyin), so an active fcitx5 is switched off around the typing and back on after.
 async fn type_text(sh: &Arc<Shared>, text: &str) {
     let _g = sh.text_lock.lock().await;
     if sh.sandbox {
         eprintln!("[sandbox] text: {text:?}");
         return;
     }
+    let fcitx = |arg: Option<&'static str>| async move {
+        let mut c = tokio::process::Command::new("fcitx5-remote");
+        if let Some(a) = arg {
+            c.arg(a);
+        }
+        c.stderr(std::process::Stdio::null()).output().await.ok()
+    };
+    let was_active = fcitx(None)
+        .await
+        .map_or(false, |o| String::from_utf8_lossy(&o.stdout).trim() == "2");
+    if was_active {
+        fcitx(Some("-c")).await;
+    }
     match tokio::process::Command::new("wtype").arg("--").arg(text).status().await {
         Ok(s) if s.success() => {}
         Ok(s) => eprintln!("yaod: wtype exited with {s}"),
         Err(e) => eprintln!("yaod: wtype: {e}"),
+    }
+    if was_active {
+        fcitx(Some("-o")).await;
     }
 }
