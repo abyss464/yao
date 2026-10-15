@@ -16,6 +16,7 @@ pub const RUN: u8 = 0x21;
 pub const SHORTCUT_PUT: u8 = 0x22;
 pub const SHORTCUT_DELETE: u8 = 0x23;
 pub const FAVORITE: u8 = 0x24;
+pub const PREEDIT: u8 = 0x25;
 pub const PING: u8 = 0x30;
 
 pub const WELCOME: u8 = 0x81;

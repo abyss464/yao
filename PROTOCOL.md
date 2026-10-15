@@ -61,7 +61,8 @@ All integers are big-endian. JSON payloads are UTF-8 JSON objects.
 | `0x13` | KEY | `u16 code` (Linux evdev `KEY_*`), `u8 state` (1 down, 0 up). Auto-repeat is the computer's job: the client sends one down and one up. |
 | `0x14` | MOTION | `i16 dx, i16 dy` — relative pointer motion, already scaled by the client |
 | `0x15` | CHORD | `u8 n`, then `n` × `u16 code` — the server presses the keys in order and releases them in reverse |
-| `0x20` | TEXT | raw UTF-8 text, typed as-is on the computer |
+| `0x20` | TEXT | raw UTF-8 text the phone's input method committed; put into the computer's focused field as-is |
+| `0x25` | PREEDIT | raw UTF-8 text the phone's input method is still composing, shown underlined in the computer's focused field; empty clears it. A following TEXT replaces it. |
 | `0x21` | RUN | JSON `{"id": "<shortcut id>"}` |
 | `0x22` | SHORTCUT_PUT | JSON `{"id"?: "<id>", "app": "<window class or empty>", "name": "...", "steps": [step...]}` — no `id` creates a new user shortcut |
 | `0x23` | SHORTCUT_DELETE | JSON `{"id": "<id>"}` (user shortcuts only) |
@@ -134,4 +135,7 @@ STATE was sent; while `playing` the client advances it with its own clock.
   follow the computer's touchpad settings. `BUTTON` frames go to it.
 - **Yao Keyboard** — uinput keyboard with every `KEY_*` code, including media keys.
 - **Yao Pointer** — uinput relative pointer (`REL_X`, `REL_Y`, `BTN_LEFT`) for `MOTION`.
-- **Text** — typed through the Wayland virtual-keyboard protocol (`wtype`).
+- **Text** — committed through fcitx5 (its `wechatvoice` addon: `Begin`, `SetPreedit`,
+  `Commit`, `Cancel` on `org.fcitx.Fcitx5 /wechatvoice`), the channel apps already take
+  composed text from. Where fcitx5 has no focused input context, typed with `wtype`
+  with fcitx5 switched off around it.

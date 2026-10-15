@@ -50,9 +50,16 @@ class ImeBridgeView(context: Context, private val model: Model, private val onCo
     private inner class Bridge : BaseInputConnection(this@ImeBridgeView, false) {
         private var composing = ""
 
-        private fun setComposing(s: String) {
+        /**
+         * The composing text also shows, underlined, in the computer's focused field.
+         * A commit replaces it there by itself, so clearing is only sent when the
+         * composition is dropped without committing.
+         */
+        private fun setComposing(s: String, send: Boolean = true) {
+            if (s == composing) return
             composing = s
             onComposing(s)
+            if (send) model.preedit(s)
         }
 
         /** Types [s] on the computer; line breaks become Enter. */
@@ -65,7 +72,7 @@ class ImeBridgeView(context: Context, private val model: Model, private val onCo
         }
 
         override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
-            setComposing("")
+            setComposing("", send = false)
             type(text.toString())
             return true
         }
@@ -78,7 +85,7 @@ class ImeBridgeView(context: Context, private val model: Model, private val onCo
         override fun finishComposingText(): Boolean {
             if (composing.isNotEmpty()) {
                 val s = composing
-                setComposing("")
+                setComposing("", send = false)
                 type(s)
             }
             return true

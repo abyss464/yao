@@ -39,6 +39,7 @@ enum Action {
     Key(u16, bool),
     Chord(Vec<u16>),
     Text(String),
+    Preedit(String),
     Steps(Vec<Step>),
 }
 
@@ -156,10 +157,11 @@ pub async fn run(sh: Arc<Shared>, tcp: TcpStream, peer: SocketAddr, acceptor: Tl
         f.abort();
     }
     reader.abort();
-    executor.abort();
     s.release_all();
     let sh = s.sh.clone();
     drop(s);
+    // The executor ends once its queue drains, clearing any preedit it showed.
+    let _ = tokio::time::timeout(Duration::from_secs(2), executor).await;
     // Let queued touch frames play out, then make sure every finger is lifted.
     let _ = tokio::time::timeout(Duration::from_millis(500), tokio::task::spawn_blocking(move || pacer.join())).await;
     sh.devices.lock().unwrap().release_touches(sid);
@@ -252,6 +254,7 @@ impl Session {
                     self.act(Action::Text(text));
                 }
             }
+            proto::PREEDIT => self.act(Action::Preedit(String::from_utf8_lossy(p).into_owned())),
             proto::RUN => self.run_shortcut(p),
             proto::SHORTCUT_PUT => self.shortcut_put(p),
             proto::SHORTCUT_DELETE => self.shortcut_delete(p),
@@ -581,6 +584,8 @@ fn token_hash(token: &str) -> String {
 }
 
 async fn execute(sh: Arc<Shared>, held: Arc<Mutex<HashSet<u16>>>, mut rx: mpsc::UnboundedReceiver<Action>) {
+    // Whether this phone's composing text is showing in the computer's focused field.
+    let mut preedit = false;
     while let Some(action) = rx.recv().await {
         match action {
             Action::Key(code, down) => {
@@ -598,12 +603,13 @@ async fn execute(sh: Arc<Shared>, held: Arc<Mutex<HashSet<u16>>>, mut rx: mpsc::
                 }
             }
             Action::Chord(codes) => chord(&sh, &codes).await,
-            Action::Text(text) => type_text(&sh, &text).await,
+            Action::Text(text) => commit_text(&sh, &mut preedit, &text).await,
+            Action::Preedit(text) => show_preedit(&sh, &mut preedit, &text).await,
             Action::Steps(steps) => {
                 for step in steps {
                     match step {
                         Step::Chord { chord: codes } => chord(&sh, &codes).await,
-                        Step::Text { text } => type_text(&sh, &text).await,
+                        Step::Text { text } => commit_text(&sh, &mut preedit, &text).await,
                         Step::Wait { wait_ms } => {
                             tokio::time::sleep(Duration::from_millis(wait_ms.min(10_000))).await
                         }
@@ -611,6 +617,9 @@ async fn execute(sh: Arc<Shared>, held: Arc<Mutex<HashSet<u16>>>, mut rx: mpsc::
                 }
             }
         }
+    }
+    if preedit {
+        show_preedit(&sh, &mut preedit, "").await;
     }
 }
 
@@ -641,15 +650,56 @@ async fn chord(sh: &Arc<Shared>, codes: &[u16]) {
     }
 }
 
-/// Types text the phone has already composed. The computer's own input method
-/// must not reinterpret it (Rime in Chinese mode would take the letters as
-/// pinyin), so an active fcitx5 is switched off around the typing and back on after.
-async fn type_text(sh: &Arc<Shared>, text: &str) {
+/// Puts text the phone has already composed into the computer's focused field,
+/// through fcitx5 (the channel apps take composed text from); typed with wtype only
+/// when fcitx5 has no focused input context to give it to.
+async fn commit_text(sh: &Arc<Shared>, preedit: &mut bool, text: &str) {
     let _g = sh.text_lock.lock().await;
     if sh.sandbox {
         eprintln!("[sandbox] text: {text:?}");
+        *preedit = false;
         return;
     }
+    let committed = if std::mem::take(preedit) {
+        sh.ime.commit(text).await
+    } else {
+        sh.ime.begin().await && sh.ime.commit(text).await
+    };
+    if !committed {
+        type_text(sh, text).await;
+    }
+}
+
+/// Shows the phone's composing text (pinyin, a word in progress) underlined in the
+/// computer's focused field; empty clears it.
+async fn show_preedit(sh: &Arc<Shared>, preedit: &mut bool, text: &str) {
+    let _g = sh.text_lock.lock().await;
+    if sh.sandbox {
+        eprintln!("[sandbox] preedit: {text:?}");
+        return;
+    }
+    if text.is_empty() {
+        if std::mem::take(preedit) {
+            sh.ime.cancel().await;
+        }
+        return;
+    }
+    if !*preedit {
+        if !sh.ime.begin().await {
+            return;
+        }
+        *preedit = true;
+    }
+    if !sh.ime.set_preedit(text).await {
+        *preedit = false;
+    }
+}
+
+/// Typing through a virtual keyboard: the fallback for fields fcitx5 does not serve.
+/// The computer's own input method must not reinterpret the text (Rime in Chinese
+/// mode would take the letters as pinyin), so an active fcitx5 is switched off
+/// around the typing and back on after.
+async fn type_text(_sh: &Arc<Shared>, text: &str) {
     let fcitx = |arg: Option<&'static str>| async move {
         let mut c = tokio::process::Command::new("fcitx5-remote");
         if let Some(a) = arg {

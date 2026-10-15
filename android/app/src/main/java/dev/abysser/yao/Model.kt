@@ -361,6 +361,7 @@ class Model(app: Application) : AndroidViewModel(app) {
     fun motion(dx: Int, dy: Int) = send(Proto.motion(dx, dy))
     fun chord(codes: List<Int>) = send(Proto.chord(codes))
     fun text(s: String) = send(Proto.text(s))
+    fun preedit(s: String) = send(Proto.frame(Proto.PREEDIT, s.toByteArray()))
     fun run(id: String) = send(Proto.json(Proto.RUN, JSONObject().put("id", id)))
 
     fun favorite(id: String, on: Boolean) =

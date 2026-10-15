@@ -2,6 +2,7 @@
 //! No UI; the only thing it ever shows is a pairing code in a desktop notification.
 
 mod devices;
+mod ime;
 mod net;
 mod session;
 
@@ -51,6 +52,7 @@ pub struct Shared {
     /// Serialises read-modify-write of shortcuts.toml and devices.toml.
     pub store_lock: Mutex<()>,
     pub text_lock: tokio::sync::Mutex<()>,
+    pub ime: ime::Fcitx,
     pub next_session: AtomicU64,
 }
 
@@ -236,6 +238,7 @@ async fn main() -> Result<()> {
         binds: Mutex::new(Vec::new()),
         store_lock: Mutex::new(()),
         text_lock: tokio::sync::Mutex::new(()),
+        ime: ime::Fcitx::default(),
         next_session: AtomicU64::new(1),
     });
     sh.rebuild_library();
