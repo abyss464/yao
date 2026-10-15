@@ -5,6 +5,7 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 pub const HELLO: u8 = 0x01;
 pub const PAIR_REQUEST: u8 = 0x02;
 pub const PAIR_CODE: u8 = 0x03;
+pub const VIDEO_OPEN: u8 = 0x04;
 pub const TOUCH_CONFIG: u8 = 0x10;
 pub const TOUCH: u8 = 0x11;
 pub const BUTTON: u8 = 0x12;

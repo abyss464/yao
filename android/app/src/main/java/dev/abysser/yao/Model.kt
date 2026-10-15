@@ -379,6 +379,12 @@ class Model(app: Application) : AndroidViewModel(app) {
     fun text(s: String) = send(Proto.text(s))
     fun preedit(s: String) = send(Proto.frame(Proto.PREEDIT, s.toByteArray()))
     fun run(id: String) = send(Proto.json(Proto.RUN, JSONObject().put("id", id)))
+    /** Opens the picture of the window being typed into, decoded onto [surface]. */
+    fun openVideo(surface: android.view.Surface, maxW: Int, maxH: Int, onFormat: (Int, Int) -> Unit): dev.abysser.yao.net.VideoStream? {
+        val p = _pairing.value ?: return null
+        return dev.abysser.yao.net.VideoStream(p.address, p.port, p.pin, deviceId, p.token, maxW, maxH, surface, onFormat).also { it.start() }
+    }
+
     fun workspace(id: Int) = send(Proto.json(Proto.WORKSPACE, JSONObject().put("id", id)))
 
     fun favorite(id: String, on: Boolean) =

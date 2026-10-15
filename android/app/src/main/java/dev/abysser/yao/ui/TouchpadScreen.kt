@@ -2,12 +2,16 @@ package dev.abysser.yao.ui
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.graphics.SurfaceTexture
 import android.view.MotionEvent
+import android.view.TextureView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.abysser.yao.K
 import dev.abysser.yao.Model
+import dev.abysser.yao.net.VideoStream
 import kotlin.math.roundToInt
 
 /**
@@ -78,16 +83,22 @@ fun TouchpadScreen(model: Model, onHost: () -> Unit) {
             Workspaces(model)
             IconButton(Glyphs.type, "打字", tint = if (typing) C.accent else C.text3) { typing = !typing }
         }
-        Pad(model, Modifier.weight(1f).fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp), stripHeight = 76)
+        Pad(
+            model, Modifier.weight(1f).fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp),
+            stripHeight = 76, video = typing,
+        )
         if (typing) TextBar(model, onClose = { typing = false })
     }
 }
 
-/** The surface and its click strip. */
+/** The surface and its click strip; while typing, the surface shows the target window. */
 @Composable
-private fun Pad(model: Model, modifier: Modifier, stripHeight: Int) {
+private fun Pad(model: Model, modifier: Modifier, stripHeight: Int, video: Boolean = false) {
     Column(modifier.clip(RoundedCornerShape(28.dp)).background(C.surface)) {
-        Surface(model, Modifier.weight(1f).fillMaxWidth())
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            if (video) VideoView(model, Modifier.fillMaxSize())
+            Surface(model, Modifier.matchParentSize())
+        }
         Box(Modifier.fillMaxWidth().height(1.dp).background(C.hair))
         Row(Modifier.fillMaxWidth().height(stripHeight.dp)) {
             ClickZone(model, K.BTN_LEFT, "左键", Modifier.weight(1f))
@@ -157,6 +168,45 @@ private fun Surface(model: Model, modifier: Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         if (fingers >= 3) BasicText(fingers.toString(), style = ts(56.sp, C.accent.copy(alpha = 0.35f), family = Mono))
+    }
+}
+
+/**
+ * The live picture of the window the text goes to, fitted into the space and drawn
+ * under the touch surface (the touchpad keeps working over it).
+ */
+@Composable
+private fun VideoView(model: Model, modifier: Modifier) {
+    var aspect by remember { mutableStateOf<Float?>(null) }
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val maxW = constraints.maxWidth
+        val maxH = constraints.maxHeight
+        AndroidView(
+            factory = { ctx ->
+                TextureView(ctx).apply {
+                    surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                        var stream: VideoStream? = null
+                        var surface: android.view.Surface? = null
+
+                        override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
+                            val sf = android.view.Surface(st)
+                            surface = sf
+                            stream = model.openVideo(sf, maxW, maxH) { vw, vh -> post { aspect = vw.toFloat() / vh } }
+                        }
+
+                        override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                            stream?.close()
+                            surface?.release()
+                            return true
+                        }
+
+                        override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
+                        override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+                    }
+                }
+            },
+            modifier = aspect?.let { Modifier.aspectRatio(it) } ?: Modifier.fillMaxSize(),
+        )
     }
 }
 

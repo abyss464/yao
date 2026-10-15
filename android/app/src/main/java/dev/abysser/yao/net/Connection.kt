@@ -37,28 +37,7 @@ class Connection(
 
     /** Connects and starts the reader and writer threads. Blocking; throws on failure. */
     fun open() {
-        val trust = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) =
-                throw CertificateException("no client certs")
-
-            override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) {
-                val fp = sha256(chain.first().encoded)
-                if (pin != null && fp != pin) throw CertificateException("certificate changed")
-                fingerprint = fp
-            }
-
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
-        val ctx = SSLContext.getInstance("TLSv1.3").apply { init(null, arrayOf(trust), null) }
-        // Straight to the computer: a system proxy has no business on the LAN.
-        val raw = Socket(java.net.Proxy.NO_PROXY).apply {
-            tcpNoDelay = true
-            connect(InetSocketAddress(host, this@Connection.port), 4000)
-        }
-        val ssl = ctx.socketFactory.createSocket(raw, host, port, true) as SSLSocket
-        ssl.enabledProtocols = arrayOf("TLSv1.3")
-        ssl.soTimeout = 0
-        ssl.startHandshake()
+        val ssl = tls(host, port, pin) { fingerprint = it }
         socket = ssl
 
         Thread({ writeLoop(ssl) }, "yao-writer").start()
@@ -119,6 +98,36 @@ class Connection(
     }
 
     companion object {
+        /**
+         * A TLS 1.3 socket to yaod, its certificate pinned by [pin] (any certificate when
+         * null; [seen] gets its fingerprint). Straight to the computer: a system proxy has
+         * no business on the LAN.
+         */
+        fun tls(host: String, port: Int, pin: String?, seen: (String) -> Unit = {}): SSLSocket {
+            val trust = object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) =
+                    throw CertificateException("no client certs")
+
+                override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) {
+                    val fp = sha256(chain.first().encoded)
+                    if (pin != null && fp != pin) throw CertificateException("certificate changed")
+                    seen(fp)
+                }
+
+                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            }
+            val ctx = SSLContext.getInstance("TLSv1.3").apply { init(null, arrayOf(trust), null) }
+            val raw = Socket(java.net.Proxy.NO_PROXY).apply {
+                tcpNoDelay = true
+                connect(InetSocketAddress(host, port), 4000)
+            }
+            val ssl = ctx.socketFactory.createSocket(raw, host, port, true) as SSLSocket
+            ssl.enabledProtocols = arrayOf("TLSv1.3")
+            ssl.soTimeout = 0
+            ssl.startHandshake()
+            return ssl
+        }
+
         fun sha256(bytes: ByteArray): String =
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     }

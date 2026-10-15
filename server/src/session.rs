@@ -72,6 +72,28 @@ pub async fn run(sh: Arc<Shared>, tcp: TcpStream, peer: SocketAddr, acceptor: Tl
     };
     let (mut rd, mut wr) = tokio::io::split(tls);
 
+    // The first frame says what this connection is: a video stream, or a session.
+    let first = match tokio::time::timeout(Duration::from_secs(10), proto::read_frame(&mut rd)).await {
+        Ok(Ok(Some(f))) => f,
+        _ => return,
+    };
+    if first.0 == proto::VIDEO_OPEN {
+        let v: Value = serde_json::from_slice(&first.1).unwrap_or(Value::Null);
+        let id = v["id"].as_str().unwrap_or("");
+        let token = v["token"].as_str().unwrap_or("");
+        let known = Devices::load(&sh.paths)
+            .map(|d| d.devices.iter().any(|d| d.id == id && d.token_sha256 == token_hash(token)))
+            .unwrap_or(false);
+        if !id.is_empty() && known {
+            let w = v["width"].as_i64().unwrap_or(1280).clamp(64, 3840);
+            let h = v["height"].as_i64().unwrap_or(720).clamp(64, 3840);
+            eprintln!("yaod: video to {peer} ({w}x{h} max)");
+            crate::video::run(sh, rd, wr, w, h).await;
+            eprintln!("yaod: video to {peer} ended");
+        }
+        return;
+    }
+
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let writer = tokio::spawn(async move {
         while let Some(frame) = out_rx.recv().await {
@@ -117,6 +139,10 @@ pub async fn run(sh: Arc<Shared>, tcp: TcpStream, peer: SocketAddr, acceptor: Tl
 
     let mut last_heard = Instant::now();
     let mut released = false;
+    if !s.handle(first.0, &first.1) {
+        s.release_all();
+        return;
+    }
     let mut last_check = Instant::now();
     let mut tick = tokio::time::interval(Duration::from_millis(250));
     let reason;

@@ -8,6 +8,7 @@ object Proto {
     const val HELLO = 0x01
     const val PAIR_REQUEST = 0x02
     const val PAIR_CODE = 0x03
+    const val VIDEO_OPEN = 0x04
     const val TOUCH_CONFIG = 0x10
     const val TOUCH = 0x11
     const val BUTTON = 0x12

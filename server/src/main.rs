@@ -5,6 +5,7 @@ mod devices;
 mod ime;
 mod net;
 mod session;
+mod video;
 
 use anyhow::{bail, Context, Result};
 use serde::Serialize;

@@ -55,6 +55,7 @@ All integers are big-endian. JSON payloads are UTF-8 JSON objects.
 | `0x01` | HELLO | JSON `{"id": "<device uuid>", "token": "<base64>", "name": "<device model>"}` |
 | `0x02` | PAIR_REQUEST | JSON `{"id": "<device uuid>", "name": "<device model>"}` |
 | `0x03` | PAIR_CODE | JSON `{"code": "482913"}` |
+| `0x04` | VIDEO_OPEN | JSON `{"id", "token", "width", "height"}` — first frame of a separate connection that carries the picture of the focused window (see "Video") |
 | `0x10` | TOUCH_CONFIG | `u16 width_px, u16 height_px, u16 x_px_per_mm, u16 y_px_per_mm` — size of the touch surface. Sent when the touchpad surface is laid out or changes size. |
 | `0x11` | TOUCH | `u32 time_ms`, `u8 n`, then `n` × `{u8 id, u16 x, u16 y}` — the complete set of fingers on the surface at `time_ms` (the client's monotonic clock in ms, e.g. Android `MotionEvent.eventTime`; `id` = Android pointer id, `x`,`y` in surface px). A finger missing from the set has lifted; `n = 0` means none. Sent on every touch event. The server replays touch frames with the client's own spacing behind a short fixed delay, so that frames bunched up by Wi-Fi do not reach libinput as jumps. |
 | `0x12` | BUTTON | `u8 button` (1 left, 2 right, 3 middle), `u8 state` (1 down, 0 up) |
@@ -67,6 +68,7 @@ All integers are big-endian. JSON payloads are UTF-8 JSON objects.
 | `0x22` | SHORTCUT_PUT | JSON `{"id"?: "<id>", "app": "<window class or empty>", "name": "...", "steps": [step...]}` — no `id` creates a new user shortcut |
 | `0x23` | SHORTCUT_DELETE | JSON `{"id": "<id>"}` (user shortcuts only) |
 | `0x24` | FAVORITE | JSON `{"id": "<id>", "favorite": true}` (any shortcut) |
+| `0x26` | WORKSPACE | JSON `{"id": 3}` — switch the computer to that workspace |
 | `0x30` | PING | `u64` client clock in ms |
 
 ## Server → client
@@ -88,7 +90,9 @@ All integers are big-endian. JSON payloads are UTF-8 JSON objects.
   "window": {"class": "code", "title": "PROTOCOL.md - yao - Visual Studio Code"},
   "media": {"player": "mpv", "title": "...", "artist": "...", "playing": true,
             "position_ms": 81234, "length_ms": 1420000},
-  "leds": {"caps": false, "num": true}
+  "leds": {"caps": false, "num": true},
+  "workspaces": [{"id": 5, "name": "5"}, {"id": 6, "name": "6"}],
+  "workspace": 6
 }
 ```
 
@@ -125,6 +129,23 @@ STATE was sent; while `playing` the client advances it with its own clock.
 - Hyprland binds listed: those with a description, in the default submap, bound to
   a keyboard key (not `mouse:`). Running one presses its modifiers and key on the
   virtual keyboard.
+
+## Video
+
+While typing, the phone shows the window the text goes to. It opens a second TLS
+connection whose first frame is `VIDEO_OPEN` (authenticated like `HELLO`, with the
+largest picture it wants). From then on the connection carries only server messages:
+
+```
+u32  length   big-endian, bytes that follow (type + payload)
+u8   type     0x01 FORMAT: JSON {"width", "height", "window": {"class", "title"}}
+              0x02 FRAME: one H.264 access unit, Annex-B
+```
+
+The focused window's region is captured (wlr-screencopy via wf-recorder), scaled to
+fit, and encoded at 30 fps on the GPU (VAAPI; libx264 otherwise), a keyframe every
+second. When focus moves, or the window moves or resizes, a new FORMAT follows and the
+stream restarts with a keyframe. Closing the connection stops capture.
 
 ## Computer-side devices
 
