@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>遥 · 遥控器</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&amp;family=Noto+Sans+SC:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#0B0C0E}
+a{color:#F2B24C}a:hover{color:#F7CB7E}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #111315; color: #C9C5BE; font-family: 'Noto Sans SC', system-ui, sans-serif; display: flex; flex-direction: column">
+
+<div style="height: 48px; flex-shrink: 0"></div>
+
+<div style="height: 44px; flex-shrink: 0; padding: 0 24px; display: flex; align-items: center">
+<button aria-label="连接与设置" style="height: 44px; padding: 0; border: 0; background: none; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8E8A84; cursor: pointer"><span style="width: 6px; height: 6px; border-radius: 3px; background: #F2B24C"></span>abyss001</button>
+</div>
+
+<div style="margin: 20px 24px 0; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; line-height: 16px; color: #8E8A84">mpv</span>
+<span style="font-size: 16px; line-height: 22px; color: #ECE8E1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">[当前媒体标题]</span>
+<span aria-hidden="true" style="margin-top: 8px; height: 2px; border-radius: 1px; background: #24282D; display: flex"><span style="width: 38%; border-radius: 1px; background: #F2B24C"></span></span>
+</div>
+
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px">
+
+<div style="width: 248px; height: 248px; border-radius: 124px; background: #1A1D21; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); align-items: center; justify-items: center">
+<span aria-hidden="true"></span>
+<button aria-label="上" style="width: 68px; height: 68px; border: 0; border-radius: 34px; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg></button>
+<span aria-hidden="true"></span>
+<button aria-label="左" style="width: 68px; height: 68px; border: 0; border-radius: 34px; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"></path></svg></button>
+<button aria-label="确定" style="width: 84px; height: 84px; border: 0; border-radius: 42px; background: #262A2F; cursor: pointer"></button>
+<button aria-label="右" style="width: 68px; height: 68px; border: 0; border-radius: 34px; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button>
+<span aria-hidden="true"></span>
+<button aria-label="下" style="width: 68px; height: 68px; border: 0; border-radius: 34px; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span aria-hidden="true"></span>
+</div>
+
+<div style="display: flex; gap: 40px">
+<button style="min-width: 56px; height: 44px; padding: 0 8px; border: 0; background: none; font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #A6A29B; cursor: pointer">Esc</button>
+<button style="min-width: 56px; height: 44px; padding: 0 8px; border: 0; background: none; font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #A6A29B; cursor: pointer">Space</button>
+<button style="min-width: 56px; height: 44px; padding: 0 8px; border: 0; background: none; font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #A6A29B; cursor: pointer">F</button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px">
+<button aria-label="上一首" style="width: 48px; height: 48px; border: 0; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5v14"></path><path d="M19 5 9 12l10 7z"></path></svg></button>
+<button aria-label="播放或暂停" style="width: 48px; height: 48px; border: 0; background: none; display: flex; align-items: center; justify-content: center; color: #F2B24C; cursor: pointer"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5v14l8-7z"></path><path d="M16 5v14M20 5v14"></path></svg></button>
+<button aria-label="下一首" style="width: 48px; height: 48px; border: 0; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 5v14"></path><path d="M5 5l10 7-10 7z"></path></svg></button>
+<span aria-hidden="true" style="width: 1px; height: 20px; margin: 0 16px; background: #2D3237"></span>
+<button aria-label="音量减" style="width: 48px; height: 48px; border: 0; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="M17 12h4"></path></svg></button>
+<button aria-label="静音" style="width: 48px; height: 48px; border: 0; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="m17 10 4 4M21 10l-4 4"></path></svg></button>
+<button aria-label="音量加" style="width: 48px; height: 48px; border: 0; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="M17 12h4M19 10v4"></path></svg></button>
+</div>
+
+</div>
+
+<button style="margin: 0 auto 12px; height: 44px; padding: 0 16px; border: 0; background: none; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8E8A84; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="13" rx="2" transform="rotate(-14 12 9.5)"></rect><path d="M4 19.5c4.5 2 11.5 2 16 0"></path></svg>按住，挥动手机移动指针</button>
+
+<nav aria-label="模式" style="flex-shrink: 0; height: 80px; box-sizing: border-box; padding: 8px 24px 20px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+<a href="Touchpad.dc.html" aria-label="触控板" style="display: flex; align-items: center; justify-content: center; color: #6F6C67; text-decoration: none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"></rect><path d="M3 15h18M12 15v5"></path></svg></a>
+<a href="Remote.dc.html" aria-label="遥控器" aria-current="page" style="display: flex; align-items: center; justify-content: center; color: #F2B24C; text-decoration: none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="5"></rect><circle cx="12" cy="9" r="2.5"></circle></svg></a>
+<a href="Keyboard.dc.html" aria-label="键盘" style="display: flex; align-items: center; justify-content: center; color: #6F6C67; text-decoration: none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"></rect><path d="M7 14h10"></path></svg></a>
+<a href="Shortcuts.dc.html" aria-label="快捷键" style="display: flex; align-items: center; justify-content: center; color: #6F6C67; text-decoration: none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6l1-8z"></path></svg></a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

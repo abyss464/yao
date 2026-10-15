@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>遥 · 全尺寸键盘</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#0B0C0E}
+a{color:#F2B24C}a:hover{color:#F7CB7E}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="width: 844px; height: 390px; box-sizing: border-box; padding: 12px 15px; background: #111315; font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif; display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="6">
+<div style="display: flex; gap: 5px; height: {{row.h}}px; flex-shrink: 0">
+<sc-for list="{{row.keys}}" as="k" hint-placeholder-count="16">
+<sc-if value="{{k.isKey}}" hint-placeholder-val="{{true}}">
+<button aria-label="{{k.aria}}" style="width: {{k.w}}px; height: 100%; flex-shrink: 0; padding: 0; border: 0; border-radius: 8px; background: {{k.bg}}; color: {{k.fg}}; font-size: {{k.size}}px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer">{{k.label}}</button>
+</sc-if>
+<sc-if value="{{k.isGap}}" hint-placeholder-val="{{false}}">
+<span aria-hidden="true" style="width: {{k.w}}px; flex-shrink: 0"></span>
+</sc-if>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":844,"height":390}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const U = 42;
+    const G = 5;
+    const width = (u) => Math.round(u * U - G);
+    const k = (label, u, state) => {
+      const units = u || 1;
+      let bg = '#1E2125';
+      let fg = '#ECE8E1';
+      if (state === 'locked') { bg = '#F2B24C'; fg = '#1C1405'; }
+      if (state === 'toggle') { bg = '#16191C'; fg = '#A6A29B'; }
+      return {
+        isKey: true,
+        isGap: false,
+        label: label,
+        aria: label || '空格',
+        w: width(units),
+        bg: bg,
+        fg: fg,
+        size: label.length > 1 ? 11 : 15,
+      };
+    };
+    const gap = (u) => ({ isKey: false, isGap: true, w: width(u) });
+    const keys = (s) => s.split(' ').map((c) => k(c));
+
+    const rows = [
+      { h: 46, keys: [
+        k('Esc'), gap(1), ...keys('F1 F2 F3 F4'), gap(0.5), ...keys('F5 F6 F7 F8'), gap(0.5), ...keys('F9 F10 F11 F12'),
+        gap(0.5), ...keys('PrtSc ScrLk Pause'), k('小键盘', 1, 'toggle'),
+      ] },
+      { h: 58, keys: [
+        ...keys('` 1 2 3 4 5 6 7 8 9 0 - ='), k('Backspace', 2),
+        gap(0.5), gap(0.5), ...keys('Ins Home PgUp'), gap(0.5),
+      ] },
+      { h: 58, keys: [
+        k('Tab', 1.5), ...keys('Q W E R T Y U I O P [ ]'), k('\\', 1.5),
+        gap(0.5), gap(0.5), ...keys('Del End PgDn'), gap(0.5),
+      ] },
+      { h: 58, keys: [
+        k('Caps', 1.75), ...keys('A S D F G H J K L ; \''), k('Enter', 2.25),
+        gap(0.5), gap(4),
+      ] },
+      { h: 58, keys: [
+        k('Shift', 2.25), ...keys('Z X C V B N M , . /'), k('Shift', 2.75),
+        gap(0.5), gap(1.5), k('↑'), gap(1.5),
+      ] },
+      { h: 58, keys: [
+        k('Ctrl', 1.25, 'locked'), k('Super', 1.25), k('Alt', 1.25), k('', 6.25), k('Alt', 1.25), k('Super', 1.25), k('Menu', 1.25), k('Ctrl', 1.25),
+        gap(0.5), gap(0.5), ...keys('← ↓ →'), gap(0.5),
+      ] },
+    ];
+    return { rows: rows };
+  }
+}
+</script>
+</body>
+</html>

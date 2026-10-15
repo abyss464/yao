@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>遥 · 规格</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500;700&amp;family=Noto+Serif+SC:wght@900&amp;display=swap">
+<style>
+body{margin:0;background:#0B0C0E}
+a{color:#F2B24C}a:hover{color:#F7CB7E}
+</style>
+</helmet>
+<div style="width: 1360px; height: 1240px; box-sizing: border-box; padding: 52px 64px 64px; background: #111315; color: #ECE8E1; font-family: 'Noto Sans SC', system-ui, sans-serif; display: flex; flex-direction: column; gap: 48px">
+
+<h1 style="margin: 0; font-size: 32px; line-height: 40px; font-weight: 500"><span style="font-family: 'Noto Serif SC', serif; font-weight: 900; color: #F2B24C">遥</span> 规格</h1>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 18px; line-height: 24px; font-weight: 500">协议帧</h2>
+<table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px">
+<thead>
+<tr style="color: #8E8A84; text-align: left">
+<th style="padding: 10px 16px 10px 0; font-weight: 400; border-bottom: 1px solid #2D3237; width: 130px">帧</th>
+<th style="padding: 10px 16px 10px 0; font-weight: 400; border-bottom: 1px solid #2D3237; width: 120px">方向</th>
+<th style="padding: 10px 16px 10px 0; font-weight: 400; border-bottom: 1px solid #2D3237">内容</th>
+<th style="padding: 10px 0; font-weight: 400; border-bottom: 1px solid #2D3237; width: 340px">落到哪里</th>
+</tr>
+</thead>
+<tbody>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #F2B24C">HELLO</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">手机 → 电脑</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">设备 ID，用配对时交换的密钥签名</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">鉴权；未配对即断开</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #F2B24C">TOUCH</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">手机 → 电脑</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">手机时间戳 + 每帧全部触点（指针 id、x、y），跟随屏幕采样率；电脑按手机原本的节奏重放</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">虚拟触控板</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #F2B24C">BUTTON</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">手机 → 电脑</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">左 / 右键 按下 · 抬起</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">虚拟触控板</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #F2B24C">KEY</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">手机 → 电脑</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">Linux evdev 键码 + 按下 · 抬起；长按由电脑自己连发</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">虚拟键盘</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #F2B24C">MOTION</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">手机 → 电脑</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">陀螺仪换算出的相对位移</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">相对指针</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #F2B24C">TEXT</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">手机 → 电脑</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">手机输入法已上屏的 UTF-8 文本</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">Wayland 虚拟键盘协议</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #F2B24C">RUN</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">手机 → 电脑</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">快捷键 ID</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">yaod 展开成按键序列，经虚拟键盘发出</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #F2B24C">PING</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">双向</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">每 250 ms 一次，顺带测延迟</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">1 秒收不到 → 松开所有按住的键</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #A6A29B">STATE</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">电脑 → 手机</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">当前窗口 class 与标题、正在播放、Caps / Num 指示灯</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">各页面的实时状态</td></tr>
+<tr><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; font-family: 'IBM Plex Mono', monospace; color: #A6A29B">LIBRARY</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">电脑 → 手机</td><td style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1F2226">快捷键库，变化时推送</td><td style="padding: 10px 0; border-bottom: 1px solid #1F2226; color: #A6A29B">快捷键页</td></tr>
+</tbody>
+</table>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px">
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 18px; line-height: 24px; font-weight: 500">交互</h2>
+<ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 22px; color: #C9C5BE">
+<li><b style="color: #ECE8E1; font-weight: 500">触控板</b>：整屏是触控区，底部一条分成左右键；点按、滚动、手势由电脑的 libinput 与 Hyprland 处理；右上「T」调出手机输入法，上屏的字直接送到电脑</li>
+<li><b style="color: #ECE8E1; font-weight: 500">遥控器</b>：方向、确定、Esc / Space / F、媒体与音量；正在播放取自电脑的 MPRIS；底部按住挥动手机即移动指针；手机侧键也调电脑音量</li>
+<li><b style="color: #ECE8E1; font-weight: 500">键盘</b>：横屏全尺寸；修饰键单击一次、双击锁定、按住即按住；Shift 生效时键帽换成上档字符；Caps 灯跟随电脑；导航区空位切换小键盘；转回竖屏即退出</li>
+<li><b style="color: #ECE8E1; font-weight: 500">快捷键</b>：「任意组合键」打开修饰键 + 任意键的组合器；收藏置顶；中间是当前窗口应用的快捷键与序列，「+」录制；最后是 Hyprland 里带描述的绑定，自动读取</li>
+<li><b style="color: #ECE8E1; font-weight: 500">电脑名</b>：左上角圆点表示连接状态，点开是设备与设置；延迟变高时才显示毫秒数</li>
+</ul>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 18px; line-height: 24px; font-weight: 500">服务端：没有界面</h2>
+<ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 22px; color: #C9C5BE">
+<li><span style="font-family: 'IBM Plex Mono', monospace; color: #ECE8E1">yaod.service</span>：systemd 用户服务，随 Hyprland 会话启动</li>
+<li>监听 <span style="font-family: 'IBM Plex Mono', monospace; color: #ECE8E1">20780</span>，mDNS 广播 <span style="font-family: 'IBM Plex Mono', monospace; color: #ECE8E1">_yao._tcp</span>，手机自动发现</li>
+<li><span style="font-family: 'IBM Plex Mono', monospace; color: #ECE8E1">~/.config/yao/config.toml</span>：端口与监听地址</li>
+<li><span style="font-family: 'IBM Plex Mono', monospace; color: #ECE8E1">~/.config/yao/shortcuts.toml</span>：快捷键库唯一存放处，手机上的增改写回这里</li>
+<li><span style="font-family: 'IBM Plex Mono', monospace; color: #ECE8E1">yao devices</span> / <span style="font-family: 'IBM Plex Mono', monospace; color: #ECE8E1">yao revoke</span>：查看、撤销已配对设备</li>
+<li>唯一露面的方式是桌面通知：配对码、新设备连上</li>
+</ul>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 18px; line-height: 24px; font-weight: 500">连接与安全</h2>
+<ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 22px; color: #C9C5BE">
+<li>第一次：手机连上 → 电脑通知弹出 6 位码 → 手机输入后自动连接，双方记下证书指纹与设备密钥</li>
+<li>之后：TLS 1.3 + 证书钉扎，未配对的设备连上即断</li>
+<li>心跳中断 1 秒，yaod 松开所有按住的键和鼠标键，Ctrl 不会卡死</li>
+<li>手机在前台时持有低延迟 Wi-Fi 锁，触点不被省电模式攒批</li>
+</ul>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
